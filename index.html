@@ -1,0 +1,985 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EXPOS — Multi-Effect Performance Pedal</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #050505;
+    --green: #ceff00;
+    --green-faint: rgba(206,255,0,0.06);
+    --white: #f0f0e8;
+    --gray: #888;
+    --border: rgba(206,255,0,0.2);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,5,5,0.88);
+    backdrop-filter: blur(16px);
+    opacity: 0; transform: translateY(-10px);
+    transition: opacity 0.5s, transform 0.5s;
+    pointer-events: none;
+  }
+  nav.visible { opacity: 1; transform: translateY(0); pointer-events: all; }
+  .nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.15em; color: var(--green); text-decoration: none; }
+  .nav-links { display: flex; gap: 32px; }
+  .nav-links a { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: var(--gray); text-decoration: none; text-transform: uppercase; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--green); }
+
+  /* HERO */
+  .hero-section {
+    position: relative; width: 100%; height: 100vh;
+    overflow: hidden; display: flex; align-items: center; justify-content: center;
+    background: #000;
+  }
+  .hero-video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; opacity: 1;
+  }
+  /* Thin gradient only at bottom so video is fully visible */
+  .hero-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to bottom, transparent 60%, rgba(5,5,5,0.92) 100%);
+    z-index: 1;
+  }
+  /* Logo: use canvas compositing to knock out black */
+  .hero-logo-wrap {
+    position: absolute; z-index: 2;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: min(580px, 70vw);
+    display: flex; flex-direction: column; align-items: center; gap: 18px;
+    pointer-events: none;
+  }
+  .hero-logo-canvas {
+    width: 100%; display: block;
+  }
+  .hero-tagline {
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 0.28em; color: rgba(255,255,255,0.55);
+    text-transform: uppercase; text-align: center;
+  }
+  /* Film grain noise overlay */
+  #noise-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: screen;
+  }
+
+  .hero-scroll-hint {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    opacity: 0; animation: fadeIn 1s 2.5s forwards;
+  }
+  .scroll-line {
+    width: 1px; height: 48px;
+    background: linear-gradient(to bottom, transparent, var(--green));
+    animation: scrollPulse 2s ease-in-out infinite;
+  }
+  .scroll-text { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.2em; color: rgba(206,255,0,0.5); text-transform: uppercase; }
+
+  /* SHARED */
+  .section-label { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.2em; color: var(--green); text-transform: uppercase; margin-bottom: 20px; }
+  .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 56px; line-height: 0.95; margin-bottom: 24px; letter-spacing: 0.03em; }
+  .section-body { font-size: 15px; line-height: 1.8; color: rgba(240,240,232,0.65); }
+
+  /* INTRO */
+  .intro-band {
+    display: grid; grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  }
+  .intro-left { padding: 80px 48px; border-right: 1px solid var(--border); display: flex; flex-direction: column; justify-content: center; }
+  .intro-right { padding: 80px 48px; display: flex; flex-direction: column; justify-content: center; position: relative; }
+  .intro-right::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 70% 50%, var(--green-faint), transparent 70%); pointer-events: none; }
+
+  /* SPEC ROW */
+  .spec-row { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--border); }
+  .spec-item { padding: 32px 40px; border-right: 1px solid var(--border); }
+  .spec-item:last-child { border-right: none; }
+  .spec-num { font-family: 'Bebas Neue', sans-serif; font-size: 52px; color: var(--green); line-height: 1; margin-bottom: 6px; }
+  .spec-label { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.15em; color: var(--gray); text-transform: uppercase; }
+
+  /* FULL PHOTO */
+  .photo-full {
+    width: 100%; border-bottom: 1px solid var(--border);
+    overflow: hidden; flex-shrink: 0;
+  }
+  .photo-full img {
+    width: 100%; height: 440px; object-fit: cover; object-position: center;
+    display: block; filter: saturate(1.05) brightness(0.88);
+  }
+
+  /* DEVICE SECTION */
+  .device-section {
+    display: grid; grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border); min-height: 520px;
+  }
+  .device-image {
+    border-right: 1px solid var(--border); overflow: hidden;
+  }
+  .device-image img {
+    width: 100%; height: 100%; object-fit: cover;
+    object-position: center; display: block;
+    filter: saturate(1.05) brightness(0.88);
+  }
+  .device-info { padding: 60px 48px; display: flex; flex-direction: column; justify-content: center; }
+
+  /* KNOB TABLE */
+  .knob-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: 4px; overflow: hidden; margin-top: 28px;
+  }
+  .knob-item { background: var(--black); padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .knob-num { font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--green); min-width: 22px; }
+  .knob-fn { font-size: 12px; color: rgba(240,240,232,0.6); font-family: 'Space Mono', monospace; letter-spacing: 0.05em; }
+
+  /* SPLIT PHOTO + TEXT */
+  .split-section {
+    display: grid; grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border); min-height: 400px;
+  }
+  .split-section .split-img {
+    overflow: hidden; border-right: 1px solid var(--border);
+  }
+  .split-section .split-img img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    filter: saturate(1.05) brightness(0.88);
+  }
+  .split-section .split-text {
+    padding: 60px 48px; display: flex; flex-direction: column; justify-content: center;
+    position: relative;
+  }
+  .split-section .split-text::before {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse at 30% 50%, var(--green-faint), transparent 70%);
+    pointer-events:none;
+  }
+
+  /* DJ FILTER */
+  .filter-section {
+    padding: 80px 48px; border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr 1.6fr; gap: 80px; align-items: center;
+  }
+  #filter-canvas { width: 100%; height: 120px; margin-top: 24px; border: 1px solid var(--border); border-radius: 4px; }
+  input[type=range]#filter-knob {
+    width: 100%; -webkit-appearance: none; height: 2px;
+    background: rgba(206,255,0,0.3); border-radius: 1px; outline: none; cursor: ew-resize;
+  }
+  input[type=range]#filter-knob::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--green); cursor: ew-resize; box-shadow: 0 0 16px var(--green);
+  }
+
+  /* TOGGLE SWITCHES */
+  .toggle switch-row { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--border); }
+  .toggle switch-item { padding: 40px 48px; border-right: 1px solid var(--border); display: flex; gap: 24px; align-items: flex-start; }
+  .toggle switch-item:last-child { border-right: none; }
+  .fs-icon { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--green); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--green); font-family: 'Bebas Neue', sans-serif; font-size: 18px; }
+  .fs-title { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: var(--green); text-transform: uppercase; margin-bottom: 6px; }
+  .fs-desc { font-size: 13px; color: rgba(240,240,232,0.55); line-height: 1.65; }
+
+  /* EFFECTS PAGE */
+  #page-effects { border-top: 2px solid var(--green); }
+  .effects-header {
+    padding: 80px 48px 60px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-end; justify-content: space-between;
+  }
+  .effects-nav { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .eff-btn {
+    font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; padding: 10px 18px; background: transparent;
+    color: var(--gray); border: none; border-right: 1px solid var(--border);
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .eff-btn:last-child { border-right: none; }
+  .eff-btn.active { background: var(--green); color: var(--black); font-weight: 700; }
+  .eff-btn:hover:not(.active) { color: var(--green); }
+
+  .effect-panel { display: none; }
+  .effect-panel.active { display: flex; flex-direction: column; }
+
+  /* EFFECT TOP: name + knob table side by side */
+  .eff-top {
+    display: grid; grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border); min-height: 340px;
+  }
+  .eff-info { padding: 48px 48px 40px; border-right: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; }
+  .eff-name { font-family: 'Bebas Neue', sans-serif; font-size: 80px; line-height: 0.9; letter-spacing: 0.02em; color: var(--white); margin-bottom: 4px; }
+  .eff-tag { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.15em; color: var(--green); text-transform: uppercase; margin-bottom: 20px; }
+  .eff-desc { font-size: 14px; line-height: 1.8; color: rgba(240,240,232,0.65); max-width: 400px; }
+
+  .eff-knobs { padding: 48px; display: flex; flex-direction: column; justify-content: center; }
+  .eff-controls {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+  }
+  .eff-ctrl { background: var(--black); padding: 14px 18px; }
+  .eff-ctrl-k { font-family: 'Bebas Neue', sans-serif; font-size: 14px; color: var(--green); margin-bottom: 3px; }
+  .eff-ctrl-name { font-size: 12px; color: rgba(240,240,232,0.55); font-family: 'Space Mono', monospace; letter-spacing: 0.04em; }
+
+  /* LED INDICATOR — full width row below effect info */
+  .eff-led-row {
+    padding: 28px 48px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 40px;
+    background: rgba(206,255,0,0.025);
+  }
+  .led-label {
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    letter-spacing: 0.15em; color: var(--gray); text-transform: uppercase;
+    min-width: 110px;
+  }
+  .led-strip { display: flex; align-items: center; gap: 12px; }
+  .led-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 1px solid rgba(206,255,0,0.3);
+    background: rgba(206,255,0,0.08);
+    flex-shrink: 0;
+  }
+  .led-dot.on {
+    background: var(--green);
+    border-color: var(--green);
+    box-shadow: 0 0 8px var(--green), 0 0 20px rgba(206,255,0,0.4);
+  }
+  /* Animations set via JS */
+  .led-desc {
+    font-family: 'Space Mono', monospace; font-size: 11px;
+    color: rgba(240,240,232,0.5); letter-spacing: 0.06em;
+  }
+  .led-bypass { margin-left: auto; font-family: 'Space Mono', monospace; font-size: 10px; color: rgba(240,240,232,0.25); letter-spacing: 0.1em; }
+
+  /* WAVEFORM VIZ */
+  .eff-viz {
+    display: grid; grid-template-columns: 1fr 1fr;
+    min-height: 340px; border-bottom: 1px solid var(--border);
+  }
+  .eff-visualizer { background: #060806; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; border-right: 1px solid var(--border); }
+  .viz-canvas { width: 100%; height: 180px; }
+  .viz-label { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.15em; color: rgba(206,255,0,0.5); text-transform: uppercase; margin: 14px 0 20px; text-align: center; }
+  .knob-demo { width: 100%; }
+  .kdemo-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .kdemo-label { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--gray); min-width: 80px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .kdemo-slider { flex: 1; -webkit-appearance: none; height: 2px; background: rgba(206,255,0,0.25); border-radius: 1px; outline: none; cursor: pointer; }
+  .kdemo-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--green); cursor: pointer; box-shadow: 0 0 8px var(--green); }
+  .kdemo-val { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--green); min-width: 32px; text-align: right; }
+  .eff-viz-right { background: #060806; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; }
+
+  footer { padding: 48px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .footer-logo { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 0.15em; color: var(--green); }
+  .footer-note { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--gray); letter-spacing: 0.1em; }
+
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  @keyframes scrollPulse { 0%,100%{opacity:.4;} 50%{opacity:1;} }
+  @keyframes scanline { 0%{transform:translateY(-100%);} 100%{transform:translateY(100vh);} }
+  body::after { content:''; position:fixed; top:0;left:0;right:0; height:3px; background:rgba(206,255,0,0.04); animation:scanline 6s linear infinite; pointer-events:none; z-index:9999; }
+
+  /* TOGGLE SWITCHES */
+  .switch-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+  .switch-item {
+    padding: 44px 48px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .switch-item:last-child { border-right: none; }
+  .switch-text { min-width: 0; }
+  .fs-icon {
+    width: 44px; height: 44px; min-width: 44px; flex-shrink: 0;
+    border-radius: 50%; border: 1.5px solid var(--green);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--green); font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+  }
+  .fs-title {
+    font-family: 'Space Mono', monospace; font-size: 11px;
+    letter-spacing: 0.12em; color: var(--green);
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  .fs-desc { font-size: 13px; color: rgba(240,240,232,0.55); line-height: 1.65; }
+
+    /* ═══════════════════════════════
+     RESPONSIVE — TABLET & MOBILE
+  ═══════════════════════════════ */
+  @media (max-width: 900px) {
+    nav { padding: 16px 24px; }
+    .nav-links { gap: 20px; }
+
+    .hero-logo-wrap { width: min(85vw, 500px); }
+
+    .intro-band { grid-template-columns: 1fr; }
+    .intro-left { border-right: none; border-bottom: 1px solid var(--border); padding: 48px 24px; }
+    .intro-right { padding: 48px 24px; }
+
+    .spec-row { grid-template-columns: 1fr 1fr; }
+    .spec-item { padding: 24px; }
+    .spec-num { font-size: 40px; }
+
+    .photo-full img { height: 280px; }
+
+    .device-section { grid-template-columns: 1fr; min-height: unset; }
+    .device-image { border-right: none; border-bottom: 1px solid var(--border); }
+    .device-image img { height: 320px; }
+    .device-info { padding: 40px 24px; }
+
+    .filter-section { grid-template-columns: 1fr; gap: 40px; padding: 48px 24px; }
+
+    .split-section { grid-template-columns: 1fr; min-height: unset; }
+    .split-section .split-img { border-right: none; border-bottom: 1px solid var(--border); }
+    .split-section .split-img img { height: 280px; }
+    .split-section .split-text { padding: 40px 24px; }
+
+    .switch-row { grid-template-columns: 1fr; }
+    .switch-item { border-right: none; border-bottom: 1px solid var(--border); padding: 32px 24px; align-items: flex-start; }
+    .switch-item:last-child { border-bottom: none; }
+    .fs-icon { min-width: 44px; }
+
+    .effects-header { flex-direction: column; gap: 24px; align-items: flex-start; padding: 48px 24px 40px; }
+    .effects-nav { width: 100%; }
+    .eff-btn { flex: 1; text-align: center; font-size: 9px; padding: 10px 8px; }
+
+    .eff-top { grid-template-columns: 1fr; }
+    .eff-info { border-right: none; border-bottom: 1px solid var(--border); padding: 32px 24px; }
+    .eff-name { font-size: 60px; }
+    .eff-knobs { padding: 32px 24px; }
+
+    .eff-led-row { padding: 20px 24px; flex-wrap: wrap; gap: 16px; }
+    .led-bypass { margin-left: 0; }
+
+    .eff-viz { grid-template-columns: 1fr; }
+    .eff-visualizer { border-right: none; border-bottom: 1px solid var(--border); }
+    .eff-viz-right { padding: 32px 24px !important; }
+
+    .section-title { font-size: 42px; }
+    .knob-grid { grid-template-columns: 1fr; }
+
+    footer { flex-direction: column; gap: 12px; align-items: flex-start; padding: 32px 24px; }
+  }
+
+  @media (max-width: 560px) {
+    nav { padding: 14px 16px; }
+    .nav-links a { font-size: 9px; letter-spacing: 0.08em; }
+
+    .hero-logo-wrap { width: 92vw; }
+    .hero-tagline { font-size: 8px; letter-spacing: 0.18em; }
+
+    .spec-row { grid-template-columns: 1fr 1fr; }
+    .spec-item { padding: 20px 16px; }
+    .spec-num { font-size: 36px; }
+    .spec-label { font-size: 9px; }
+
+    .photo-full img { height: 220px; }
+
+    .intro-left, .intro-right { padding: 36px 16px; }
+    .device-info { padding: 32px 16px; }
+    .filter-section { padding: 36px 16px; }
+    .split-section .split-text { padding: 32px 16px; }
+    .switch-item { padding: 28px 16px; }
+    .eff-info { padding: 28px 16px; }
+    .eff-knobs { padding: 28px 16px; }
+    .eff-visualizer { padding: 24px 16px; }
+    .eff-viz-right { padding: 28px 16px !important; }
+    .eff-led-row { padding: 16px; }
+    .effects-header { padding: 36px 16px 32px; }
+
+    .section-title { font-size: 36px; }
+    .eff-name { font-size: 48px; }
+    .eff-controls { grid-template-columns: 1fr; }
+
+    footer { padding: 28px 16px; }
+    .footer-note { font-size: 9px; }
+  }
+
+</style>
+</head>
+<body>
+
+<nav id="main-nav">
+  <a class="nav-logo" href="#hero">EXPOS</a>
+  <div class="nav-links">
+    <a href="#page-overview">Overview</a>
+    <a href="#device-section">The Device</a>
+    <a href="#page-effects">Effects</a>
+  </div>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<div id="hero" class="hero-section">
+  <video class="hero-video" autoplay muted loop playsinline>
+    <source src="assets/press2.mp4" type="video/mp4">
+  </video>
+  <div class="hero-overlay"></div>
+  <canvas id="noise-canvas"></canvas>
+
+  <div class="hero-logo-wrap">
+    <canvas class="hero-logo-canvas" id="logoCanvas"></canvas>
+    <p class="hero-tagline">Multi-Effect Performance Pedal</p>
+  </div>
+
+  <div class="hero-scroll-hint">
+    <span class="scroll-text">Scroll</span>
+    <div class="scroll-line"></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 1: OVERVIEW ═══ -->
+<section id="page-overview">
+
+  <div class="intro-band">
+    <div class="intro-left">
+      <p class="section-label">// What is EXPOS</p>
+      <h2 class="section-title">Performance fluidity through hardware</h2>
+    </div>
+    <div class="intro-right">
+      <p class="section-body">EXPOS is a digital multi-effect audio processor designed for live performance and experimental sound manipulation. The device combines multiple time-based and modulation effects: Reverb, Dub Echo, Flanger, and Vinyl Brake, inside a single hardware unit, processing stereo audio in real time.<br><br>Instead of screens or menus, EXPOS gives performers direct tactile control: six knobs, two toggle switches, and a DJ-style filter that sculpts the frequency spectrum post-effect.</p>
+    </div>
+  </div>
+
+  <div class="spec-row">
+    <div class="spec-item"><div class="spec-num">4</div><div class="spec-label">Effect modes</div></div>
+    <div class="spec-item"><div class="spec-num">6</div><div class="spec-label">Control knobs</div></div>
+    <div class="spec-item"><div class="spec-num">2</div><div class="spec-label">Toggle Switches</div></div>
+    <div class="spec-item"><div class="spec-num">ST</div><div class="spec-label">Stereo I/O</div></div>
+  </div>
+
+  <!-- Photo 1: full width hero device shot -->
+  <div class="photo-full">
+    <img src="assets/2.png" alt="EXPOS front view">
+  </div>
+
+  <!-- Device section -->
+  <div id="device-section" class="device-section">
+    <div class="device-image">
+      <img src="assets/1.png" alt="EXPOS top view">
+    </div>
+    <div class="device-info">
+      <p class="section-label">// The device</p>
+      <h2 class="section-title">Hardware built for performance</h2>
+      <p class="section-body">The interface is designed for immediate control during a performance, no screens, no menus. Each of the six knobs maps to a different parameter depending on the active effect.</p>
+      <div class="knob-grid">
+        <div class="knob-item"><span class="knob-num">K1</span><span class="knob-fn">Dry / Wet mix</span></div>
+        <div class="knob-item"><span class="knob-num">K2</span><span class="knob-fn">Effect parameter A</span></div>
+        <div class="knob-item"><span class="knob-num">K3</span><span class="knob-fn">Effect parameter B</span></div>
+        <div class="knob-item"><span class="knob-num">K4</span><span class="knob-fn">Effect parameter C</span></div>
+        <div class="knob-item"><span class="knob-num">K5</span><span class="knob-fn">DJ Filter (LP/HP)</span></div>
+        <div class="knob-item"><span class="knob-num">K6</span><span class="knob-fn">Effect parameter D</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DJ Filter -->
+  <div class="filter-section">
+    <div>
+      <p class="section-label">// DJ filter — Knob 5</p>
+      <h2 class="section-title">Sculpt the frequency spectrum</h2>
+      <p class="section-body" style="margin-bottom:0">Centre position is neutral. Turning left engages a low-pass filter, sweeping from 20kHz down to 300Hz for progressively darker tones. Turning right engages a high-pass filter, sweeping from 20Hz up to 4kHz for thinner, more aggressive textures. Applied post-effect.</p>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--green)">Low-Pass</div>
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--gray);letter-spacing:.1em;text-transform:uppercase">20kHz → 300Hz</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--green)">High-Pass</div>
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--gray);letter-spacing:.1em;text-transform:uppercase">20Hz → 4kHz</div>
+        </div>
+      </div>
+      <input type="range" id="filter-knob" min="-100" max="100" value="0">
+      <div style="display:flex;justify-content:space-between;margin-top:12px;">
+        <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--gray);letter-spacing:.1em;">← Turn left</span>
+        <span id="filter-state" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:.1em;">NEUTRAL</span>
+        <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--gray);letter-spacing:.1em;">Turn right →</span>
+      </div>
+      <canvas id="filter-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Photo 2: angled shot with text -->
+  <div class="split-section">
+    <div class="split-img">
+    <img src="assets/3.png" alt="Angled shot">
+    </div>
+    <div class="split-text">
+      <p class="section-label">// Performance</p>
+      <h2 class="section-title" style="font-size:44px;">Built for<br>the stage</h2>
+      <p class="section-body">Effects switch instantly via the left toggle switch. The right toggle switch bypasses processing entirely, passing clean dry signal through. Parameters shape continuously. There is no latency between intention and sound.</p>
+    </div>
+  </div>
+
+  <!-- Toggle Switches -->
+  <div class="switch-row">
+    <div class="switch-item">
+      <div class="fs-icon">L</div>
+      <div class="switch-text">
+        <div class="fs-title">Left toggle switch — cycle effects</div>
+        <div class="fs-desc">Steps through Reverb → Dub Echo → Flanger → Vinyl Brake. The LED pattern changes with each mode. Switching is instantaneous, delay buffers and vinyl state reset cleanly on each press.</div>
+      </div>
+    </div>
+    <div class="switch-item">
+      <div class="fs-icon">R</div>
+      <div class="switch-text">
+        <div class="fs-title">Right toggle switch — bypass</div>
+        <div class="fs-desc">Immediately passes the dry signal through unprocessed. Both LEDs go dark in bypass mode. Toggle freely during performance, no clicks, no artefacts.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Photo 3: fourth image full width -->
+  <div class="photo-full">
+<img src= "assets/4.png" alt="EXPOS on stage">
+  </div>
+
+</section>
+
+<!-- ═══ PAGE 2: EFFECTS ═══ -->
+<section id="page-effects">
+  <div class="effects-header">
+    <div>
+      <p class="section-label">// Effects</p>
+      <h2 class="section-title" style="font-size:56px;">Four modes.<br>One device.</h2>
+    </div>
+    <div class="effects-nav">
+      <button class="eff-btn active" onclick="showEffect('reverb',this)">Reverb</button>
+      <button class="eff-btn" onclick="showEffect('dubecho',this)">Dub Echo</button>
+      <button class="eff-btn" onclick="showEffect('flanger',this)">Flanger</button>
+      <button class="eff-btn" onclick="showEffect('vinyl',this)">Vinyl Brake</button>
+    </div>
+  </div>
+
+  <!-- ── REVERB ── -->
+  <div id="eff-reverb" class="effect-panel active">
+    <div class="eff-top">
+      <div class="eff-info">
+        <div>
+          <div class="eff-name">REVERB</div>
+          <div class="eff-tag">Space · Depth · Atmosphere</div>
+          <p class="eff-desc">Simulates acoustic reflections within a physical space. The feedback path is filtered to give each repeat a slightly darker character. Ranges from tight room ambience to long, expansive decays.</p>
+        </div>
+      </div>
+      <div class="eff-knobs">
+        <p class="section-label" style="margin-bottom:14px;">// Knob mapping</p>
+        <div class="eff-controls">
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K1</div><div class="eff-ctrl-name">Dry / Wet mix</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K2</div><div class="eff-ctrl-name">Feedback (decay)</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K3</div><div class="eff-ctrl-name">LP frequency (tone)</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K4</div><div class="eff-ctrl-name">Input gain</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K5</div><div class="eff-ctrl-name">DJ filter</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K6</div><div class="eff-ctrl-name">Wet output gain</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- LED indicator: REVERB = solid ON -->
+    <div class="eff-led-row">
+      <span class="led-label">LED pattern</span>
+      <div class="led-strip">
+        <div class="led-dot on" id="rv-led1"></div>
+        <div class="led-dot on" id="rv-led2"></div>
+      </div>
+      <span class="led-desc">Both LEDs solid </span>
+      <span class="led-bypass">BYPASS = both off</span>
+    </div>
+    <div class="eff-viz">
+      <div class="eff-visualizer">
+        <canvas class="viz-canvas" id="viz-reverb"></canvas>
+        <p class="viz-label">Waveform simulation</p>
+        <div class="knob-demo">
+          <div class="kdemo-row"><span class="kdemo-label">Decay (K2)</span><input type="range" class="kdemo-slider" id="rv-decay" min="1" max="100" value="60"><span class="kdemo-val" id="rv-decay-v">60</span></div>
+          <div class="kdemo-row"><span class="kdemo-label">Wet (K1)</span><input type="range" class="kdemo-slider" id="rv-wet" min="0" max="100" value="50"><span class="kdemo-val" id="rv-wet-v">50</span></div>
+        </div>
+      </div>
+      <div class="eff-viz-right" style="padding:48px;">
+        <p class="section-label">// Signal path</p>
+        <p style="font-size:14px;line-height:1.9;color:rgba(240,240,232,0.6);">Input → ReverbSc algorithm → LP filter in feedback path → Wet gain → Mix with dry → DJ filter → Output<br><br>Feedback range: <span style="color:var(--green)">0.25 – 0.92</span><br>LP frequency: <span style="color:var(--green)">1.2kHz – 18kHz</span><br>Input gain: <span style="color:var(--green)">0.7× – 1.8×</span><br>Wet gain: <span style="color:var(--green)">0.7× – 1.5×</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DUB ECHO ── -->
+  <div id="eff-dubecho" class="effect-panel">
+    <div class="eff-top">
+      <div class="eff-info">
+        <div>
+          <div class="eff-name">DUB<br>ECHO</div>
+          <div class="eff-tag">Tape delay · Feedback · Self-oscillation</div>
+          <p class="eff-desc">A tape-style delay with a one-pole lowpass filter in the feedback path — each repeat becomes slightly darker. At high feedback values the delay enters self-oscillation, building into dense, evolving textures.</p>
+        </div>
+      </div>
+      <div class="eff-knobs">
+        <p class="section-label" style="margin-bottom:14px;">// Knob mapping</p>
+        <div class="eff-controls">
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K1</div><div class="eff-ctrl-name">Dry / Wet mix</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K2</div><div class="eff-ctrl-name">Delay time</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K3</div><div class="eff-ctrl-name">Feedback amount</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K4</div><div class="eff-ctrl-name">Tone (CCW=dark)</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K5</div><div class="eff-ctrl-name">DJ filter</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K6</div><div class="eff-ctrl-name">Input drive</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- LED indicator: DUB ECHO = slow blink every 300ms -->
+    <div class="eff-led-row">
+      <span class="led-label">LED pattern</span>
+      <div class="led-strip">
+        <div class="led-dot" id="de-led1"></div>
+        <div class="led-dot" id="de-led2"></div>
+      </div>
+      <span class="led-desc">Both LEDs blink</span>
+      <span class="led-bypass">BYPASS = both off</span>
+    </div>
+    <div class="eff-viz">
+      <div class="eff-visualizer">
+        <canvas class="viz-canvas" id="viz-dubecho"></canvas>
+        <p class="viz-label">Echo repeat simulation</p>
+        <div class="knob-demo">
+          <div class="kdemo-row"><span class="kdemo-label">Delay (K2)</span><input type="range" class="kdemo-slider" id="de-delay" min="1" max="100" value="40"><span class="kdemo-val" id="de-delay-v">40</span></div>
+          <div class="kdemo-row"><span class="kdemo-label">Feedback (K3)</span><input type="range" class="kdemo-slider" id="de-feedback" min="0" max="100" value="55"><span class="kdemo-val" id="de-feedback-v">55</span></div>
+        </div>
+      </div>
+      <div class="eff-viz-right" style="padding:48px;">
+        <p class="section-label">// Signal path</p>
+        <p style="font-size:14px;line-height:1.9;color:rgba(240,240,232,0.6);">Input → Drive → Delay line → 1-pole LP in feedback → Mix with dry → DJ filter → Output<br><br>Delay time: <span style="color:var(--green)">~6ms – 2s</span><br>Feedback: <span style="color:var(--green)">0.20 – 0.97</span> (self-oscillation at high end)<br>Drive: <span style="color:var(--green)">0.8× – 1.6×</span><br>Tone: <span style="color:var(--green)">bright → dark repeats</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FLANGER ── -->
+  <div id="eff-flanger" class="effect-panel">
+    <div class="eff-top">
+      <div class="eff-info">
+        <div>
+          <div class="eff-name">FLANGER</div>
+          <div class="eff-tag">Modulation · Comb-filter · LFO sweep</div>
+          <p class="eff-desc">A short delay line modulated by an LFO creates moving comb-filter patterns. The feedback path adds resonance and metallic texture. Base delay and modulation depth are independently controllable.</p>
+        </div>
+      </div>
+      <div class="eff-knobs">
+        <p class="section-label" style="margin-bottom:14px;">// Knob mapping</p>
+        <div class="eff-controls">
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K1</div><div class="eff-ctrl-name">Dry / Wet mix</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K2</div><div class="eff-ctrl-name">LFO rate (0.05–2.5Hz)</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K3</div><div class="eff-ctrl-name">Mod depth (2–30 samp)</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K4</div><div class="eff-ctrl-name">Feedback (0–0.6)</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K5</div><div class="eff-ctrl-name">DJ filter</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K6</div><div class="eff-ctrl-name">Base delay (2–12 samp)</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- LED: FLANGER = double-blink in 1050ms cycle: on 0-150, on 300-450 -->
+    <div class="eff-led-row">
+      <span class="led-label">LED pattern</span>
+      <div class="led-strip">
+        <div class="led-dot" id="fl-led1"></div>
+        <div class="led-dot" id="fl-led2"></div>
+      </div>
+      <span class="led-desc">Both LEDs double-blink</span>
+      <span class="led-bypass">BYPASS = both off</span>
+    </div>
+    <div class="eff-viz">
+      <div class="eff-visualizer">
+        <canvas class="viz-canvas" id="viz-flanger"></canvas>
+        <p class="viz-label">LFO modulation simulation</p>
+        <div class="knob-demo">
+          <div class="kdemo-row"><span class="kdemo-label">LFO rate (K2)</span><input type="range" class="kdemo-slider" id="fl-rate" min="1" max="100" value="30"><span class="kdemo-val" id="fl-rate-v">30</span></div>
+          <div class="kdemo-row"><span class="kdemo-label">Depth (K3)</span><input type="range" class="kdemo-slider" id="fl-depth" min="0" max="100" value="65"><span class="kdemo-val" id="fl-depth-v">65</span></div>
+        </div>
+      </div>
+      <div class="eff-viz-right" style="padding:48px;">
+        <p class="section-label">// Signal path</p>
+        <p style="font-size:14px;line-height:1.9;color:rgba(240,240,232,0.6);">Input → Delay line (LFO-modulated) → Add delayed to dry → Feedback → Mix → DJ filter → Output<br><br>LFO rate: <span style="color:var(--green)">0.05Hz – 2.5Hz</span><br>Mod depth: <span style="color:var(--green)">2 – 30 samples</span><br>Feedback: <span style="color:var(--green)">0.0 – 0.6</span><br>Base delay: <span style="color:var(--green)">2 – 12 samples</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── VINYL BRAKE ── -->
+  <div id="eff-vinyl" class="effect-panel">
+    <div class="eff-top">
+      <div class="eff-info">
+        <div>
+          <div class="eff-name">VINYL<br>BRAKE</div>
+          <div class="eff-tag">Pitch shift · Time distortion · Wow/Flutter</div>
+          <p class="eff-desc">Records audio into a circular buffer and reads back at a variable speed. A slew-rate-limited speed control creates smooth deceleration or acceleration. Wow and flutter add organic pitch instability typical of degraded tape or worn vinyl.</p>
+        </div>
+      </div>
+      <div class="eff-knobs">
+        <p class="section-label" style="margin-bottom:14px;">// Knob mapping</p>
+        <div class="eff-controls">
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K1</div><div class="eff-ctrl-name">Dry / Wet mix</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K2</div><div class="eff-ctrl-name">Target speed (0–2×)</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K3</div><div class="eff-ctrl-name">Brake slew rate</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K4</div><div class="eff-ctrl-name">Wow / flutter depth</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K5</div><div class="eff-ctrl-name">DJ filter</div></div>
+          <div class="eff-ctrl"><div class="eff-ctrl-k">K6</div><div class="eff-ctrl-name">Output gain</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- LED: VINYL BRAKE = 4 quick pulses in 1540ms cycle: 110ms on/off × 4 -->
+    <div class="eff-led-row">
+      <span class="led-label">LED pattern</span>
+      <div class="led-strip">
+        <div class="led-dot" id="vb-led1"></div>
+        <div class="led-dot" id="vb-led2"></div>
+      </div>
+      <span class="led-desc">Both LEDs quad-blink</span>
+      <span class="led-bypass">BYPASS = both off</span>
+    </div>
+    <div class="eff-viz">
+      <div class="eff-visualizer">
+        <canvas class="viz-canvas" id="viz-vinyl"></canvas>
+        <p class="viz-label">Pitch-time distortion simulation</p>
+        <div class="knob-demo">
+          <div class="kdemo-row"><span class="kdemo-label">Speed (K2)</span><input type="range" class="kdemo-slider" id="vb-speed" min="1" max="100" value="50"><span class="kdemo-val" id="vb-speed-v">50</span></div>
+          <div class="kdemo-row"><span class="kdemo-label">Flutter (K4)</span><input type="range" class="kdemo-slider" id="vb-flutter" min="0" max="100" value="30"><span class="kdemo-val" id="vb-flutter-v">30</span></div>
+        </div>
+      </div>
+      <div class="eff-viz-right" style="padding:48px;">
+        <p class="section-label">// Signal path</p>
+        <p style="font-size:14px;line-height:1.9;color:rgba(240,240,232,0.6);">Input → Circular buffer write → Variable-speed read (linear interp) → Wow/flutter modulation → Output gain → Mix → DJ filter → Output<br><br>Target speed: <span style="color:var(--green)">0× (stop) – 2× (double)</span><br>Slew: <span style="color:var(--green)">slow cinematic – abrupt stop</span><br>Flutter: <span style="color:var(--green)">3Hz @ 0–2.5% depth</span><br>Output gain: <span style="color:var(--green)">0.8× – 1.2×</span></p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<footer>
+  <span class="footer-logo">EXPOS</span>
+  <span class="footer-note">Multi-Effect Performance Pedal &nbsp;·&nbsp; Stereo I/O &nbsp;·&nbsp; 4 Effects &nbsp;·&nbsp; 6 Knobs &nbsp;·&nbsp; 48kHz</span>
+</footer>
+
+<script>
+// ── NAV ──
+const nav = document.getElementById('main-nav');
+new IntersectionObserver(e => nav.classList.toggle('visible', !e[0].isIntersecting), {threshold:0.1}).observe(document.getElementById('hero'));
+
+// ── LOGO: draw PNG onto canvas ──
+(function() {
+  const canvas = document.getElementById('logoCanvas');
+  const img = new Image();
+  img.onload = function() {
+    // Size canvas to image aspect ratio
+    const aspect = img.naturalWidth / img.naturalHeight;
+    canvas.width  = canvas.offsetWidth  * devicePixelRatio;
+    canvas.height = (canvas.offsetWidth / aspect) * devicePixelRatio;
+    canvas.style.height = (canvas.offsetWidth / aspect) + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  };
+  img.src = "assets/logo.png";
+})();
+
+// ── LED ANIMATIONS: exact firmware logic ──
+// REVERB:      solid on
+// DUB_ECHO:    (now_ms / 300) % 2 == 0  → 300ms square wave
+// FLANGER:     cycle 1050ms: on 0-150, on 300-450
+// VINYL_BRAKE: cycle 1540ms: on 0-110, 220-330, 440-550, 660-770
+
+function effectLedState(effect, now) {
+  switch(effect) {
+    case 'reverb':  return true;
+    case 'dubecho': return (Math.floor(now / 300) % 2) === 0;
+    case 'flanger': { const p = now % 1050; return (p < 150) || (p >= 300 && p < 450); }
+    case 'vinyl':   { const p = now % 1540; return (p < 110) || (p >= 220 && p < 330) || (p >= 440 && p < 550) || (p >= 660 && p < 770); }
+  }
+  return false;
+}
+
+function updateLeds() {
+  const now = Date.now() % 100000; // keep it small
+  const effects = ['reverb','dubecho','flanger','vinyl'];
+  effects.forEach(eff => {
+    const on = effectLedState(eff, now);
+    const prefix = {reverb:'rv', dubecho:'de', flanger:'fl', vinyl:'vb'}[eff];
+    ['led1','led2'].forEach(l => {
+      const el = document.getElementById(prefix + '-' + l);
+      if (!el) return;
+      if (on) {
+        el.classList.add('on');
+      } else {
+        el.classList.remove('on');
+      }
+    });
+  });
+  requestAnimationFrame(updateLeds);
+}
+updateLeds();
+
+// ── EFFECT SWITCHER ──
+function showEffect(id, btn) {
+  document.querySelectorAll('.effect-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.eff-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('eff-'+id).classList.add('active');
+  btn.classList.add('active');
+  setTimeout(drawAll, 50);
+}
+
+// ── DJ FILTER ──
+const filterKnob = document.getElementById('filter-knob');
+filterKnob.addEventListener('input', function() {
+  const v = parseInt(this.value);
+  document.getElementById('filter-state').textContent = v<-10?'LOW-PASS':v>10?'HIGH-PASS':'NEUTRAL';
+  drawFilter(v);
+});
+function drawFilter(v) {
+  const c = document.getElementById('filter-canvas'); if(!c) return;
+  const ctx = c.getContext('2d');
+  c.width = c.offsetWidth * devicePixelRatio;
+  c.height = c.offsetHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const W = c.offsetWidth, H = c.offsetHeight;
+  const top = H * 0.18, bot = H * 0.82;
+  ctx.clearRect(0, 0, W, H);
+
+  // grid lines
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath(); ctx.strokeStyle = 'rgba(206,255,0,0.07)'; ctx.lineWidth = 0.5;
+    ctx.moveTo(W/4*i, 0); ctx.lineTo(W/4*i, H); ctx.stroke();
+  }
+
+  ctx.beginPath(); ctx.strokeStyle = '#ceff00'; ctx.lineWidth = 1.5;
+
+  if (Math.abs(v) <= 2) {
+    // NEUTRAL: perfectly flat line at top
+    ctx.moveTo(0, top);
+    ctx.lineTo(W, top);
+  } else if (v < 0) {
+    // LOW-PASS: amt 0=open(right), 1=fully closed(left)
+    const amt = (-v - 2) / 98;
+    // cutoff moves from right edge toward left as amt increases
+    const cutX = W * (1.0 - amt * 0.82);
+    // gentle S-curve: wide bezier control points for smooth transition
+    const cpDist = W * 0.18; // control point spread = smoother curve
+    ctx.moveTo(0, top);
+    ctx.lineTo(cutX - cpDist * 0.5, top);
+    ctx.bezierCurveTo(
+      cutX + cpDist * 0.15, top,
+      cutX + cpDist * 0.15, bot,
+      cutX + cpDist * 0.65, bot
+    );
+    ctx.lineTo(W, bot);
+  } else {
+    // HIGH-PASS: mirror of low-pass, amt 0=open(left), 1=fully closed(right)
+    const amt = (v - 2) / 98;
+    const cutX = W * amt * 0.82;
+    const cpDist = W * 0.18;
+    ctx.moveTo(0, bot);
+    ctx.lineTo(cutX - cpDist * 0.65, bot);
+    ctx.bezierCurveTo(
+      cutX - cpDist * 0.15, bot,
+      cutX - cpDist * 0.15, top,
+      cutX + cpDist * 0.5, top
+    );
+    ctx.lineTo(W, top);
+  }
+  ctx.stroke();
+}
+
+// ── WAVEFORMS ──
+let time = 0;
+function drawReverb(){
+  const c=document.getElementById('viz-reverb');if(!c||!c.offsetWidth)return;
+  const ctx=c.getContext('2d');c.width=c.offsetWidth*devicePixelRatio;c.height=c.offsetHeight*devicePixelRatio;
+  ctx.scale(devicePixelRatio,devicePixelRatio);const W=c.offsetWidth,H=c.offsetHeight;
+  const decay=parseInt(document.getElementById('rv-decay').value)/100;
+  const wet=parseInt(document.getElementById('rv-wet').value)/100;
+  ctx.clearRect(0,0,W,H);
+  for(let t=1;t<=5;t++){const alpha=wet*Math.pow(decay,t)*0.65;ctx.beginPath();ctx.strokeStyle=`rgba(206,255,0,${alpha})`;ctx.lineWidth=1;for(let x=0;x<W;x++){const y=H/2+Math.sin((x/W)*Math.PI*8+time-t*0.4)*H*0.22*Math.pow(decay,t);x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();}
+  ctx.beginPath();ctx.strokeStyle=`rgba(206,255,0,${0.3*(1-wet)+0.1})`;ctx.lineWidth=1.5;for(let x=0;x<W;x++){const y=H/2+Math.sin((x/W)*Math.PI*8+time)*H*0.22;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+}
+function drawDubEcho(){
+  const c=document.getElementById('viz-dubecho');if(!c||!c.offsetWidth)return;
+  const ctx=c.getContext('2d');c.width=c.offsetWidth*devicePixelRatio;c.height=c.offsetHeight*devicePixelRatio;
+  ctx.scale(devicePixelRatio,devicePixelRatio);const W=c.offsetWidth,H=c.offsetHeight;
+  const delay=parseInt(document.getElementById('de-delay').value)/100;
+  const feedback=parseInt(document.getElementById('de-feedback').value)/100;
+  ctx.clearRect(0,0,W,H);const numE=Math.floor(feedback*6)+1;
+  for(let e=0;e<numE;e++){const amp=Math.pow(feedback,e)*0.85,shift=e*delay*W*0.28;ctx.beginPath();ctx.strokeStyle=`rgba(206,255,0,${amp*0.75})`;ctx.lineWidth=Math.max(0.5,1.5-e*0.2);for(let x=0;x<W;x++){const sx=x-shift;const pulse=Math.exp(-sx/W*3)*Math.sin((sx/W)*Math.PI*6+time);const y=H/2+pulse*H*0.3*amp;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();}
+}
+function drawFlanger(){
+  const c=document.getElementById('viz-flanger');if(!c||!c.offsetWidth)return;
+  const ctx=c.getContext('2d');c.width=c.offsetWidth*devicePixelRatio;c.height=c.offsetHeight*devicePixelRatio;
+  ctx.scale(devicePixelRatio,devicePixelRatio);const W=c.offsetWidth,H=c.offsetHeight;
+  const rate=parseInt(document.getElementById('fl-rate').value)/100;
+  const depth=parseInt(document.getElementById('fl-depth').value)/100;
+  ctx.clearRect(0,0,W,H);ctx.beginPath();ctx.strokeStyle='rgba(206,255,0,0.85)';ctx.lineWidth=1.5;
+  for(let x=0;x<W;x++){const lfo=Math.sin(time*rate*5)*depth;const combined=Math.sin((x/W)*Math.PI*10+time)+Math.sin((x/W)*Math.PI*10+lfo+time)*0.75;const y=H/2+combined*H*0.2;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+}
+function drawVinyl(){
+  const c=document.getElementById('viz-vinyl');if(!c||!c.offsetWidth)return;
+  const ctx=c.getContext('2d');c.width=c.offsetWidth*devicePixelRatio;c.height=c.offsetHeight*devicePixelRatio;
+  ctx.scale(devicePixelRatio,devicePixelRatio);const W=c.offsetWidth,H=c.offsetHeight;
+  const speed=parseInt(document.getElementById('vb-speed').value)/100;
+  const flutter=parseInt(document.getElementById('vb-flutter').value)/100;
+  ctx.clearRect(0,0,W,H);ctx.beginPath();ctx.strokeStyle='rgba(206,255,0,0.9)';ctx.lineWidth=1.5;
+  for(let x=0;x<W;x++){const slow=1-(x/W)*(1-speed);const wow=Math.sin(x*0.05+time*2)*flutter*0.3;const y=H/2+Math.sin((x/W)*Math.PI*8*slow+wow+time*speed)*H*0.28;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();
+}
+function drawAll(){drawReverb();drawDubEcho();drawFlanger();drawVinyl();drawFilter(parseInt(filterKnob.value));}
+function animate(){time+=0.025;drawAll();requestAnimationFrame(animate);}
+
+[['rv-decay','rv-decay-v'],['rv-wet','rv-wet-v'],['de-delay','de-delay-v'],
+ ['de-feedback','de-feedback-v'],['fl-rate','fl-rate-v'],['fl-depth','fl-depth-v'],
+ ['vb-speed','vb-speed-v'],['vb-flutter','vb-flutter-v']].forEach(([id,out])=>{
+  const el=document.getElementById(id),o=document.getElementById(out);
+  if(el&&o)el.addEventListener('input',()=>o.textContent=el.value);
+});
+
+window.addEventListener('load', animate);
+
+// ── FILM GRAIN NOISE ──
+(function() {
+  const nc = document.getElementById('noise-canvas');
+  if (!nc) return;
+  const nctx = nc.getContext('2d');
+  let nframe = 0;
+
+  function drawNoise() {
+    const W = nc.offsetWidth;
+    const H = nc.offsetHeight;
+    if (nc.width !== W * devicePixelRatio) {
+      nc.width  = W * devicePixelRatio;
+      nc.height = H * devicePixelRatio;
+    }
+    const w = nc.width, h = nc.height;
+    const img = nctx.createImageData(w, h);
+    const data = img.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const v = Math.random() * 255 | 0;
+      data[i]   = v;
+      data[i+1] = v;
+      data[i+2] = v;
+      data[i+3] = 255;
+    }
+    nctx.putImageData(img, 0, 0);
+    nframe++;
+    requestAnimationFrame(drawNoise);
+  }
+  drawNoise();
+})();
+</script>
+</body>
+</html>
