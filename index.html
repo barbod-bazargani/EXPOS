@@ -797,7 +797,7 @@ new IntersectionObserver(e => nav.classList.toggle('visible', !e[0].isIntersecti
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i+1], b = d[i+2];
       const brightness = (r + g + b) / 3;
-      if (brightness < 30) {
+      if (brightness < 80) {
         d[i+3] = 0; // fully transparent
       } else if (brightness < 80) {
         d[i+3] = Math.round((brightness - 30) / 50 * 255); // smooth edge
