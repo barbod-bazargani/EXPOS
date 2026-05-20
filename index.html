@@ -792,19 +792,7 @@ new IntersectionObserver(e => nav.classList.toggle('visible', !e[0].isIntersecti
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
     // Remove black background: set any near-black pixel to transparent
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const d = data.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const r = d[i], g = d[i+1], b = d[i+2];
-      const brightness = (r + g + b) / 3;
-      if (brightness < 80) {
-        d[i+3] = 0; // fully transparent
-      } else if (brightness < 80) {
-        d[i+3] = Math.round((brightness - 30) / 50 * 255); // smooth edge
-      }
-    }
-    ctx.putImageData(data, 0, 0);
-  };
+   
   img.src = "assets/logo.png";
 })();
 
